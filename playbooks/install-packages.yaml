@@ -1,0 +1,43 @@
+---
+- name: Setup cybersecurity enviroment
+  hosts: localhost
+  connection: local
+  become: yes
+
+  tasks:
+    - name: Check the state of the system apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 1800 #Only check if cache hasnt been checked in last 30 minutes
+    - name: Install apt packages
+      apt: 
+        pkg: 
+          - nano
+          - micro
+          - git
+          - python3
+          - python3-pip
+          - btop
+          - iftop
+          - tmux
+        state: "{{app_state | default('present')}}" # Defaults to "present" instead of updating
+    - name: Add repo to keyring and install VS Code 
+      ansible.builtin.shell: |
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | tee /etc/apt/keyrings/microsoft.asc > /dev/null
+        echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/repos/code stable main" | tee /etc/apt/sources.list.d/vscode.list > /dev/null
+        apt-get update
+        apt-get install -y code
+      args:
+        creates: /usr/bin/code
+    - name: Add repository to keyring and install SourceGit
+      ansible.builtin.shell: |
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://codeberg.org/api/packages/yataro/debian/repository.key | tee /etc/apt/keyrings/sourcegit.asc > /dev/null
+        echo "deb [signed-by=/etc/apt/keyrings/sourcegit.asc arch=amd64,arm64] https://codeberg.org/api/packages/yataro/debian generic main" | tee /etc/apt/sources.list.d/sourcegit.list > /dev/null
+        apt-get update
+        apt-get install -y sourcegit
+      args:
+        creates: /usr/bin/sourcegit
+      
+      
