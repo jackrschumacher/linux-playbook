@@ -1,5 +1,0 @@
----
-- name: Setup cybersecurity enviroment
-  hosts: machines
-  connection: local
-  become: yes

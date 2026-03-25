@@ -1,7 +1,0 @@
----
-- name: Setup cybersecurity enviroment
-  hosts: localhost
-  connection: local
-  become: yes
-
-  tasks:
