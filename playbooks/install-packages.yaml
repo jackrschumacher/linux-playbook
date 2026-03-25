@@ -1,6 +1,6 @@
 ---
 - name: Setup cybersecurity enviroment
-  hosts: localhost
+  hosts: machines
   connection: local
   become: yes
 
