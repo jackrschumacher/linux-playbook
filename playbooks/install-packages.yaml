@@ -23,6 +23,8 @@
           - vim
           - neovim
           - okular
+          - tree
+          - konsole
         state: "{{app_state | default('present')}}" # Defaults to "present" instead of updating
     - name: Install snap packages
       community.general.snap:
