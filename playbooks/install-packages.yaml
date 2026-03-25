@@ -21,6 +21,10 @@
           - iftop
           - tmux
         state: "{{app_state | default('present')}}" # Defaults to "present" instead of updating
+    - name: Install snap packages
+      community.general.snap:
+        name: 
+          - glow
     - name: Add repo to keyring and install VS Code 
       ansible.builtin.shell: |
         mkdir -p /etc/apt/keyrings
