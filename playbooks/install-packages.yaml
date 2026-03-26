@@ -1,7 +1,8 @@
 ---
-- name: Setup cybersecurity enviroment
+- name: Setup Linux enviroment
   hosts: machines
   connection: local
+  gather_facts: yes
   become: yes
 
   tasks:
@@ -9,9 +10,9 @@
       apt:
         update_cache: yes
         cache_valid_time: 1800 #Only check if cache hasnt been checked in last 30 minutes
-    - name: Install apt packages
-      apt: 
-        pkg: 
+    - name: Install CLI apt packages
+      apt:
+        pkg:
           - nano
           - micro
           - git
@@ -22,14 +23,24 @@
           - tmux
           - vim
           - neovim
-          - okular
           - tree
-          - konsole
         state: "{{app_state | default('present')}}" # Defaults to "present" instead of updating
-    - name: Install snap packages
+    - name: Install GUI apt packages
+      apt:
+        pkg:
+          - okular
+          - konsole
+        state: "{{app_state | default('present')}}"
+      when: install_gui | default (false) | bool
+    - name: Install CLI snap packages
       community.general.snap:
-        name: 
+        name:
           - glow
+    - name: Install GUI snap packages
+      community.general.snap:
+        name:
+          - typora
+      when: install_gui | default (false) | bool
     - name: Add repo to keyring and install VS Code 
       ansible.builtin.shell: |
         mkdir -p /etc/apt/keyrings
@@ -39,6 +50,7 @@
         apt-get install -y code
       args:
         creates: /usr/bin/code
+      when: install_gui | default (false) | bool
     - name: Add repository to keyring and install SourceGit
       ansible.builtin.shell: |
         mkdir -p /etc/apt/keyrings
@@ -48,5 +60,4 @@
         apt-get install -y sourcegit
       args:
         creates: /usr/bin/sourcegit
-      
-      
+      when: install_gui | default (false) | bool

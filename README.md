@@ -37,4 +37,10 @@ Navigate to the `linux-playbook` folder and run the following command:
 ansible-playbook playbooks/install-packages.yaml -K -e "app_state=latest" -l "[host]"
 ```
 
-### `web-dev.yaml`
+### Installing with or without a gui
+By default this playbook almost exclusively installs command line applications. To override this add the `install_gui=true` variable to hosts in the `inventory.ini` file, or use the command line flag below.
+
+```bash
+ansible-playbook playbooks/install-packages.yaml -K -e "app_state=latest" -e "install_gui=true" -l "[host]"
+```
+
