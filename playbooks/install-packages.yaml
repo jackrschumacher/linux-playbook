@@ -10,6 +10,11 @@
       apt:
         update_cache: yes
         cache_valid_time: 1800 #Only check if cache hasnt been checked in last 30 minutes
+    - name: Check Snap installation
+      ansible.builtin.shell: command -v snap
+      register: snap_check
+      changed_when: false
+      ignore_errors: true
     - name: Install CLI apt packages
       apt:
         pkg:
@@ -40,6 +45,7 @@
       community.general.snap:
         name:
           - typora
+          - vivaldi
       when: install_gui | default (false) | bool
     - name: Add repo to keyring and install VS Code 
       ansible.builtin.shell: |
