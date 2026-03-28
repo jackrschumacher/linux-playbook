@@ -49,6 +49,9 @@
         name:
           - typora
           - vivaldi
+          - logseq
+          - zotero-snap
+          - todoist
       when: 
         - install_gui | default (false) | bool
         - snap_check.stat.exists
