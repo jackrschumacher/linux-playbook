@@ -28,6 +28,9 @@
           - vim
           - neovim
           - tree
+          - htop
+          - atop
+          - iotop
         state: "{{app_state | default('present')}}" # Defaults to "present" instead of updating
     - name: Install GUI apt packages
       apt:
