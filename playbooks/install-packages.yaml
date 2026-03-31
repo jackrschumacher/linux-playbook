@@ -26,7 +26,7 @@
         repo: ppa:zhangsongcui3371/fastfetch
         state: present
         update_cache: yes # Update cache after adding
-      when: ansible_distribution == "Ubuntu"
+      when: ansible_facts['distribution'] == "Ubuntu"
     - name: Install CLI apt packages
       apt:
         pkg:
