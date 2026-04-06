@@ -21,11 +21,14 @@
           - dirmngr
         state: present
         update_cache: yes
-    - name: Add PPA
-      ansible.builtin.apt_repository:
-        repo: ppa:zhangsongcui3371/fastfetch
-        state: present
-        update_cache: yes # Update cache after adding
+    - name: Add Fastfetch repository over HTTPS 
+      ansible.builtin.shell: |
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x7E2E5CB4D4865F21" | tee /etc/apt/keyrings/fastfetch.asc > /dev/null
+        echo "deb [signed-by=/etc/apt/keyrings/fastfetch.asc] https://ppa.launchpadcontent.net/zhangsongcui3371/fastfetch/ubuntu {{ ansible_facts['distribution_release'] }} main" | tee /etc/apt/sources.list.d/fastfetch.list > /dev/null
+        apt-get update
+      args:
+        creates: /etc/apt/sources.list.d/fastfetch.list
       when: ansible_facts['distribution'] == "Ubuntu"
     - name: Install CLI apt packages
       apt:
