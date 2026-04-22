@@ -4,6 +4,8 @@
   connection: local
   gather_facts: yes
   become: yes
+  vars:
+    lazygit_version: "0.61.1"
 
   tasks:
     - name: Check the state of the system apt cache
@@ -48,7 +50,22 @@
           - atop
           - iotop
           - fastfetch
+          - glances
         state: "{{app_state | default('present')}}" # Defaults to "present" instead of updating
+    - name: Map system architecture to Lazygit naming convention
+      ansible.builtin.set_fact:
+        lazygit_arch: >-
+          lazygit_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'x86_64' }}"
+
+    - name: Download and extract Lazygit archive
+      ansible.builtin.unarchive:
+        src: "https://github.com/jesseduffield/lazygit/releases/download/v{{ lazygit_version }}/lazygit_{{ lazygit_version }}_Linux_{{ lazygit_arch }}.tar.gz"
+        dest: /usr/local/bin/
+        remote_src: yes
+        owner: root
+        group: root
+        mode: '0755'
+        creates: /usr/local/bin/lazygit
     - name: Install GUI apt packages
       apt:
         pkg:
@@ -75,6 +92,7 @@
       when: 
         - install_gui | default (false) | bool
         - snap_check.stat.exists
+    
     - name: Add repo to keyring and install VS Code 
       ansible.builtin.shell: |
         mkdir -p /etc/apt/keyrings
