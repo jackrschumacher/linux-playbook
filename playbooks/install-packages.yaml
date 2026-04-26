@@ -70,7 +70,6 @@
       apt:
         pkg:
           - okular
-          - konsole
         state: "{{app_state | default('present')}}"
       when: 
         - install_gui | default (false) | bool
