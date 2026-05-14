@@ -67,7 +67,6 @@
         
     - name: Map system architecture to Lazygit naming convention
       ansible.builtin.set_fact:
-        lazygit_arch: >-
           lazygit_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'x86_64' }}"
 
     - name: Download and extract Lazygit archive
