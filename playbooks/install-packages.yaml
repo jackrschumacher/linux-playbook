@@ -1,46 +1,70 @@
 ---
-- name: Setup Linux enviroment
+- name: Setup Linux environment
   hosts: machines
   connection: local
   gather_facts: yes
   become: yes
   vars:
     lazygit_version: "0.61.1"
+    # ansible_facts['architecture'] -> lazygit release asset suffix
+    lazygit_arch_map:
+      x86_64: x86_64
+      amd64: x86_64
+      aarch64: arm64
+      arm64: arm64
+      armv7l: armv6
+      armv6l: armv6
+      i386: 32-bit
+      i686: 32-bit
+    sourcegit_version: "2026.17"
+    # ansible_facts['architecture'] -> sourcegit release asset suffix
+    sourcegit_arch_map:
+      x86_64: amd64
+      amd64: amd64
+      aarch64: arm64
+      arm64: arm64
 
   tasks:
     - name: Check the state of the system apt cache
       apt:
         update_cache: yes
-        cache_valid_time: 1800 #Only check if cache hasnt been checked in last 30 minutes
-        
+        cache_valid_time: 1800 # Only check if cache hasn't been checked in last 30 minutes
+
     - name: Check Snap installation
-      ansible.builtin.stat: 
+      ansible.builtin.stat:
         path: /usr/bin/snap
       register: snap_check
-      
-    - name: Ensure GPG dependencies are installed
+
+    - name: Ensure repository management dependencies are installed
       apt:
-        name: 
+        name:
           - gnupg
           - dirmngr
           - ca-certificates
+          - python3-debian # Required by ansible.builtin.deb822_repository
         state: present
         update_cache: yes
+        cache_valid_time: 1800
+
+    - name: Remove legacy one-line apt sources superseded by deb822 sources
+      ansible.builtin.file:
+        path: "/etc/apt/sources.list.d/{{ item }}.list"
+        state: absent
+      loop:
+        - fastfetch
+        - vscode
+        - sourcegit
 
     # --- FASTFETCH REPO SETUP ---
-    - name: Download Fastfetch GPG key
-      ansible.builtin.get_url:
-        url: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x7E2E5CB4D4865F21"
-        dest: /etc/apt/keyrings/fastfetch.asc
-        mode: '0644'
-        force: true # Forces download if the file is empty/corrupted
-      when: ansible_facts['distribution'] == "Ubuntu"
-
     - name: Add Fastfetch repository
-      ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/etc/apt/keyrings/fastfetch.asc] https://ppa.launchpadcontent.net/zhangsongcui3371/fastfetch/ubuntu {{ ansible_facts['distribution_release'] }} main"
+      ansible.builtin.deb822_repository:
+        name: fastfetch
+        types: deb
+        uris: "https://ppa.launchpadcontent.net/zhangsongcui3371/fastfetch/ubuntu"
+        suites: "{{ ansible_facts['distribution_release'] }}"
+        components: main
+        signed_by: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x7E2E5CB4D4865F21"
         state: present
-        filename: fastfetch
       when: ansible_facts['distribution'] == "Ubuntu"
 
     - name: Install CLI apt packages
@@ -62,65 +86,77 @@
           - iotop
           - fastfetch
           - glances
-        state: "{{app_state | default('present')}}" # Defaults to "present" instead of updating
+        state: "{{ app_state | default('present') }}" # Defaults to "present" instead of updating
         update_cache: yes
-        
+
     - name: Map system architecture to Lazygit naming convention
       ansible.builtin.set_fact:
-          lazygit_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'x86_64' }}"
+        lazygit_arch: "{{ lazygit_arch_map[ansible_facts['architecture']] | default('') }}"
+
+    - name: Fail early on architectures Lazygit does not publish builds for
+      ansible.builtin.fail:
+        msg: >-
+          No Lazygit release asset is known for architecture
+          '{{ ansible_facts['architecture'] }}'. Add it to lazygit_arch_map.
+      when: lazygit_arch | length == 0
+
+    - name: Check installed Lazygit version
+      ansible.builtin.command: lazygit --version
+      register: lazygit_installed
+      changed_when: false
+      failed_when: false
+      check_mode: false
 
     - name: Download and extract Lazygit archive
       ansible.builtin.unarchive:
         src: "https://github.com/jesseduffield/lazygit/releases/download/v{{ lazygit_version }}/lazygit_{{ lazygit_version }}_Linux_{{ lazygit_arch }}.tar.gz"
         dest: /usr/local/bin/
         remote_src: yes
+        include:
+          - lazygit # The archive also ships LICENSE and README.md
         owner: root
         group: root
         mode: '0755'
-        creates: /usr/local/bin/lazygit
-        
+      when: ('version=' ~ lazygit_version ~ ',') not in (lazygit_installed.stdout | default(''))
+
     - name: Install GUI apt packages
       apt:
         pkg:
           - okular
-        state: "{{app_state | default('present')}}"
-      when: 
-        - install_gui | default(false) | bool
-        - snap_check.stat.exists
-        
+        state: "{{ app_state | default('present') }}"
+      when: install_gui | default(false) | bool
+
     - name: Install CLI snap packages
       community.general.snap:
         name:
           - glow
       when:
         - snap_check.stat.exists
-        
+
     - name: Install GUI snap packages
       community.general.snap:
         name:
           - typora
           - vivaldi
-          - logseq
-          - zotero-snap
           - todoist
-      when: 
+      when:
         - install_gui | default(false) | bool
         - snap_check.stat.exists
-    
-    # --- VS CODE SETUP ---
-    - name: Download VS Code GPG key
-      ansible.builtin.get_url:
-        url: https://packages.microsoft.com/keys/microsoft.asc
-        dest: /etc/apt/keyrings/microsoft.asc
-        mode: '0644'
-        force: true
-      when: install_gui | default(false) | bool
 
+    # --- VS CODE SETUP ---
     - name: Add VS Code repository
-      ansible.builtin.apt_repository:
-        repo: "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/repos/code stable main"
+      ansible.builtin.deb822_repository:
+        name: vscode
+        types: deb
+        uris: "https://packages.microsoft.com/repos/code"
+        suites: stable
+        components: main
+        architectures:
+          - amd64
+          - arm64
+          - armhf
+        signed_by: https://packages.microsoft.com/keys/microsoft.asc
         state: present
-        filename: vscode
       when: install_gui | default(false) | bool
 
     - name: Install VS Code
@@ -131,24 +167,42 @@
       when: install_gui | default(false) | bool
 
     # --- SOURCEGIT SETUP ---
-    - name: Download SourceGit GPG key
-      ansible.builtin.get_url:
-        url: https://codeberg.org/api/packages/yataro/debian/repository.key
-        dest: /etc/apt/keyrings/sourcegit.asc
-        mode: '0644'
-        force: true
+    # The third-party Codeberg repo (yataro) lags upstream by several releases,
+    # so install the official .deb from the SourceGit GitHub releases instead.
+    - name: Remove superseded SourceGit repository
+      ansible.builtin.deb822_repository:
+        name: sourcegit
+        uris: "https://codeberg.org/api/packages/yataro/debian"
+        suites: generic
+        state: absent
+
+    - name: Map system architecture to SourceGit naming convention
+      ansible.builtin.set_fact:
+        sourcegit_arch: "{{ sourcegit_arch_map[ansible_facts['architecture']] | default('') }}"
       when: install_gui | default(false) | bool
 
-    - name: Add SourceGit repository
-      ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/etc/apt/keyrings/sourcegit.asc arch=amd64,arm64] https://codeberg.org/api/packages/yataro/debian generic main"
-        state: present
-        filename: sourcegit
+    - name: Fail early on architectures SourceGit does not publish builds for
+      ansible.builtin.fail:
+        msg: >-
+          No SourceGit release asset is known for architecture
+          '{{ ansible_facts['architecture'] }}'. Add it to sourcegit_arch_map.
+      when:
+        - install_gui | default(false) | bool
+        - sourcegit_arch | length == 0
+
+    - name: Check installed SourceGit version
+      ansible.builtin.command: dpkg-query -W -f='${Version}' sourcegit
+      register: sourcegit_installed
+      changed_when: false
+      failed_when: false
+      check_mode: false
       when: install_gui | default(false) | bool
 
+    # The asset filename carries a Debian revision ('-1') that the package's
+    # own Version field does not, so the two are built separately.
     - name: Install SourceGit
       apt:
-        name: sourcegit
-        state: "{{ app_state | default('present') }}"
-        update_cache: yes
-      when: install_gui | default(false) | bool
+        deb: "https://github.com/sourcegit-scm/sourcegit/releases/download/v{{ sourcegit_version }}/sourcegit_{{ sourcegit_version }}-1_{{ sourcegit_arch }}.deb"
+      when:
+        - install_gui | default(false) | bool
+        - sourcegit_installed.stdout | default('') != sourcegit_version
